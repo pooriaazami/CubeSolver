@@ -9,21 +9,20 @@ class DQN(nn.Module):
 
         self.network = nn.Sequential(
             nn.Linear(input_shape, hidden_size),
-            # nn.ReLU(),
-            # nn.LeakyReLU(),
-            nn.ELU(),
-            nn.Dropout(.2),
+            # nn.ELU(),
+            nn.SELU(),
 
             nn.Linear(hidden_size, hidden_size),
-            # nn.LeakyReLU(),
-            nn.ELU(),
-            # nn.ReLU(),
-            nn.Dropout(.2),
+            # nn.ELU(),
+            nn.SELU(),
 
             nn.Linear(hidden_size, hidden_size),
-            # nn.ReLU(),
-            nn.ELU(),
-            nn.Dropout(.2),
+            # nn.ELU(),
+            nn.SELU(),
+
+            nn.Linear(hidden_size, hidden_size),
+            # nn.ELU(),
+            nn.SELU(),
 
             nn.Linear(hidden_size, count_of_moves)
         )

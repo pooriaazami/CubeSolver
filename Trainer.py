@@ -123,13 +123,14 @@ def train(env, memory, policy_net, target_net, optimizer, shuffle_count, max_ite
 
             optimize_model(memory, policy_net, target_net, optimizer)
 
-            if t % UPDATE_FREQ == 0:
-                target_net_state_dict = target_net.state_dict()
-                policy_net_state_dict = policy_net.state_dict()
-                for key in policy_net_state_dict:
-                    target_net_state_dict[key] = policy_net_state_dict[key] * \
-                        TAU + target_net_state_dict[key]*(1-TAU)
-                target_net.load_state_dict(target_net_state_dict)
+            # if t % UPDATE_FREQ == 0:
+            target_net_state_dict = target_net.state_dict()
+            policy_net_state_dict = policy_net.state_dict()
+            for key in policy_net_state_dict:
+                target_net_state_dict[key] = policy_net_state_dict[key] * \
+                    TAU + target_net_state_dict[key]*(1-TAU)
+            target_net.load_state_dict(target_net_state_dict)
+            # target_net.load_state_dict(policy_net.state_dict())
 
             if done:
                 break
@@ -162,7 +163,6 @@ def calculate_mean_reward(log, window_size):
 
 def main():
     global steps_done
-    global EPS_DECAY
 
     env = CubeEnv()
     n_actions = len(env.actions)
@@ -171,16 +171,17 @@ def main():
     target_net = DQN(3 * 3 * 3, latent_dim, n_actions).to(device)
     target_net.load_state_dict(policy_net.state_dict())
 
-    optimizer = optim.Adam(policy_net.parameters(), lr=LR, weight_decay=1e-2)
-    memory = ReplayMemory(25000)
+    # optimizer = optim.Adam(policy_net.parameters(), lr=LR, weight_decay=1e-2)
+    optimizer = optim.RMSprop(policy_net.parameters(), lr=LR, weight_decay=1e-2)
+    memory = ReplayMemory(10000)
 
-    for i in range(1, 11):
+    for i in range(1, 11, 2):
         memory.reset()
         steps_done = 0
 
         # update_freq_offset = 0 if i == 1 else 150
 
-        log = train(env, memory, policy_net, target_net, optimizer, i, 20)
+        log = train(env, memory, policy_net, target_net, optimizer, i, MAX_ITER)
         # EPS_DECAY *= 1.2
         # avg_log = calculate_mean_reward(log, 50)
         # cum_log = np.cumsum(log) / np.cumsum(np.ones(log.shape))
