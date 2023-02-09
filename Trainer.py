@@ -3,6 +3,7 @@ import math
 from itertools import count
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -12,13 +13,15 @@ from DQN import DQN
 from ReplayMemeoty import ReplayMemory, Transition
 from Cube import CubeEnvironment as CubeEnv
 
-BATCH_SIZE = 128
-GAMMA = 0.99
+BATCH_SIZE = 64
+GAMMA = 1
 EPS_START = 0.9
 EPS_END = 0.05
 EPS_DECAY = 1000
 TAU = 0.005
-LR = 1e-4
+LR = 1e-3
+
+UPDATE_FREQ = 2
 
 SUFFLE_COUNT = 1
 MAX_ITER = 20
@@ -64,77 +67,125 @@ def optimize_model(memory, policy_net, target_net, optimizer):
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
     criterion = nn.SmoothL1Loss()
+    # criterion = nn.MSELoss()
     loss = criterion(state_action_values,
                      expected_state_action_values.unsqueeze(1))
 
     optimizer.zero_grad()
     loss.backward()
 
-    torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
+    # torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
     optimizer.step()
 
 
-def train(env, memory, policy_net, target_net, optimizer):
-    if torch.cuda.is_available():
-        num_episodes = 600
-    else:
-        num_episodes = 50
+def train(env, memory, policy_net, target_net, optimizer, shuffle_count, max_iter):
+    log = []
+    win = 0
+    last_rate = 0
+    epsilon = 1e-5
+    early_stopping_counter = 0
+    patience = 50
 
-    for i_episode in range(num_episodes):
+    for i_episode in count():
         env.reset()
-        env.suffle(SUFFLE_COUNT)
+        env.suffle(np.random.choice(shuffle_count) + 1)
+        # env.suffle(suffle_count)
         state = torch.tensor(env.tensor.reshape(-1), dtype=torch.float32,
                              device=device).unsqueeze(0)
 
-        print('New episode started')
+        if (i_episode + 1) % 100 == 0:
+            print(f'100 more eposids are done --> {i_episode + 1}, rate: {last_rate}, depth: {shuffle_count}')
+        # print(f'New episode started ({i_episode+1})')
         for t in count():
             action = select_action(state, policy_net, env)
 
             env.move(action.item())
-            reward = int(env.done)
-            print(f'reward: {reward}')
-
+            # reward = int(env.done) * 10
+            reward = env.score - 7
             reward = torch.tensor([reward], device=device)
             done = int(env.done)
 
             next_state = torch.tensor(
                 env.tensor.reshape(-1), dtype=torch.float32, device=device).unsqueeze(0)
 
-            if t == MAX_ITER:
+            if done:
+                reward = reward = torch.tensor([50], device=device)
+                win += 1
+
+            log.append(win / (i_episode + 1))
+            if t == max_iter:
+                reward = reward = torch.tensor([-10], device=device)
                 done = True
+                next_state = None
 
             memory.push(state, action, next_state, reward)
             state = next_state
 
             optimize_model(memory, policy_net, target_net, optimizer)
 
-            target_net_state_dict = target_net.state_dict()
-            policy_net_state_dict = policy_net.state_dict()
-            for key in policy_net_state_dict:
-                target_net_state_dict[key] = policy_net_state_dict[key] * \
-                    TAU + target_net_state_dict[key]*(1-TAU)
-            target_net.load_state_dict(target_net_state_dict)
+            if t % UPDATE_FREQ == 0:
+                target_net_state_dict = target_net.state_dict()
+                policy_net_state_dict = policy_net.state_dict()
+                for key in policy_net_state_dict:
+                    target_net_state_dict[key] = policy_net_state_dict[key] * \
+                        TAU + target_net_state_dict[key]*(1-TAU)
+                target_net.load_state_dict(target_net_state_dict)
 
             if done:
                 break
 
+        rate = win / (i_episode + 1)
+        # if (i_episode + 1) % 100 == 0:
+        #     print(rate - last_rate)
+        if rate - last_rate < epsilon or rate > .99:
+            early_stopping_counter += 1
+        else:
+            early_stopping_counter = 0
+
+        last_rate = rate
+        if early_stopping_counter == patience:
+            break
+
     print('Complete')
+    return np.array(log)
+
+
+def calculate_mean_reward(log, window_size):
+    avg = []
+
+    total_lenght = len(log)
+    for i in range(total_lenght - window_size):
+        avg.append(log[i:i+window_size].mean())
+
+    return avg
 
 
 def main():
+    global steps_done
+    global EPS_DECAY
+
     env = CubeEnv()
     n_actions = len(env.actions)
+    latent_dim = 512
+    policy_net = DQN(3 * 3 * 3, latent_dim, n_actions).to(device)
+    target_net = DQN(3 * 3 * 3, latent_dim, n_actions).to(device)
+    target_net.load_state_dict(policy_net.state_dict())
 
-    env.suffle(SUFFLE_COUNT)
+    optimizer = optim.Adam(policy_net.parameters(), lr=LR, weight_decay=1e-2)
+    memory = ReplayMemory(25000)
 
-    policy_net = DQN(3 * 3 * 3, 100, n_actions).to(device)
-    target_net = DQN(3 * 3 * 3, 100, n_actions).to(device)
-    # target_net.load_state_dict(policy_net.state_dict())
+    for i in range(1, 11):
+        memory.reset()
+        steps_done = 0
 
-    optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
-    memory = ReplayMemory(10000)
+        # update_freq_offset = 0 if i == 1 else 150
 
-    train(env, memory, policy_net, target_net, optimizer)
+        log = train(env, memory, policy_net, target_net, optimizer, i, 20)
+        # EPS_DECAY *= 1.2
+        # avg_log = calculate_mean_reward(log, 50)
+        # cum_log = np.cumsum(log) / np.cumsum(np.ones(log.shape))
+        plt.plot(log)
+        plt.show()
 
 
 if __name__ == '__main__':
