@@ -60,29 +60,29 @@ class CubeEnvironment:
         return np.all(self.__cube == self.__ground_truth)
     
     def move(self, action):
-        if action == 'u':
+        if action == 'u' or action == 0:
             self.__up()
-        elif action == 'uu':
+        elif action == 'uu' or action == 1:
             self.__upu()
-        elif action == 'd':
+        elif action == 'd' or action == 2:
             self.__down()
-        elif action == 'du':
+        elif action == 'du' or action == 3:
             self.__downu()
-        elif action == 'f':
+        elif action == 'f' or action == 4:
             self.__front()
-        elif action == 'fu':
+        elif action == 'fu' or action == 5:
             self.__frontu()
-        elif action == 'b':
+        elif action == 'b' or action == 6:
             self.__back()
-        elif action == 'bu':
+        elif action == 'bu' or action == 7:
             self.__backu()
-        elif action == 'l':
+        elif action == 'l' or action == 8:
             self.__left()
-        elif action == 'lu':
+        elif action == 'lu' or action == 9:
             self.__leftu()
-        elif action == 'r':
+        elif action == 'r' or action == 10:
             self.__right()
-        elif action == 'ru':
+        elif action == 'ru' or action == 11:
             self.__rightu()
         else:
             return False
