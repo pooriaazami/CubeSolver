@@ -4,7 +4,8 @@ class CubeEnvironment:
     def __init__(self):
         self.__cube = np.array(range(1, 3 * 3 * 3 + 1)).reshape(3, 3, 3)
         self.__ground_truth = np.array(range(1, 3 * 3 * 3 + 1)).reshape(3, 3, 3)
-        self.__actions = ['u', 'd', 'f', 'b', 'l', 'r', 'uu', 'du', 'fu', 'bu', 'lu', 'ru']
+        # self.__actions = ['u', 'd', 'f', 'b', 'l', 'r', 'uu', 'du', 'fu', 'bu', 'lu', 'ru']
+        self.__actions = np.array(range(12))
         
     def __front(self):
         self.__cube[2, :, :] = np.rot90(self.__cube[2, :, :], k=3)
